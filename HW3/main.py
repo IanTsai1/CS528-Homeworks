@@ -7,7 +7,7 @@ from google.cloud import pubsub_v1
 publisher = pubsub_v1.PublisherClient()
 PROJECT = "cs528-485121"   
 BUCKET_NAME = "iantsai-hw2"
-topic_path = publisher.topic_path(PROJECT, "forbidden-topic")
+
 
 
 storage_client = storage.Client()
@@ -45,6 +45,16 @@ def write_structured_log(request, severity, message, **extra_fields):
 
 @functions_framework.http
 def file_service(request):
+    write_structured_log(
+        request,
+        "INFO",
+        "incoming_request",
+        method=request.method,
+        url=request.url,
+        args=dict(request.args),
+        headers=dict(request.headers),
+        remote_addr=request.remote_addr
+    )
 
     if request.method != "GET":
         write_structured_log(
@@ -65,7 +75,7 @@ def file_service(request):
         )
         return ("Missing file parameter", 400)
     
-    country = request.headers.get("X-country", "Unknown")
+    country = request.headers.get("X-Country")
 
     if country in countries:
         write_structured_log(
@@ -74,10 +84,13 @@ def file_service(request):
             "forbidden_country_request",
             country=country
         )
+        topic_path = publisher.topic_path(PROJECT, "forbidden-topic")
 
+        msg = f"Forbidden request from {country}"
+        msg = msg.encode("utf-8")
         publisher.publish(
             topic_path,
-            json.dumps({"country": country, "message": "forbidden access attempt"}).encode("utf-8")
+            msg
         )
 
         return ("Permission denied", 400)
